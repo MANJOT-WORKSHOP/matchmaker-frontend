@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, PlusCircle, AlertCircle, Home, CheckCircle2, MapPin, Camera, Loader2, Tag, Image as ImageIcon, LayoutGrid, Check, User, LogIn, LogOut, MessageSquareCode, X, Sparkles, Send, ScanLine } from 'lucide-react';
+import { Search, PlusCircle, AlertCircle, Home, CheckCircle2, MapPin, Camera, Loader2, Tag, Image as ImageIcon, LayoutGrid, Check, User, LogIn, LogOut, MessageSquareCode, X, Sparkles, Send, ScanLine, Mail } from 'lucide-react';
 
 // ⚠️ CHANGE THIS LINK TO YOUR REAL RENDER URL ⚠️
 const BACKEND_URL = "https://ai-matchmaker-api-kjky.onrender.com/"; 
@@ -19,13 +19,14 @@ export default function App() {
   const [browseItems, setBrowseItems] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Authentication States
+  // Authentication & Profile States
   const [currentUser, setCurrentUser] = useState(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authEmail, setAuthEmail] = useState('');
+  const [profileData, setProfileData] = useState({ reports: [], claims: [] });
 
   // AI Chat Assistant States
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -79,12 +80,34 @@ export default function App() {
   };
   
   const handleReportClick = (type) => {
+    if (!currentUser) {
+      setAuthMode('login');
+      setAuthModalOpen(true);
+      triggerToast("Please log in to report items", "error");
+      return;
+    }
     setFormType(type);
     setCurrentView(`report-${type}`);
   };
 
+  const openAssistant = () => {
+    if (!currentUser) {
+      setAuthMode('login');
+      setAuthModalOpen(true);
+      triggerToast("Please log in to use the AI Assistant", "error");
+      return;
+    }
+    setAssistantOpen(true);
+  };
+
   // --- LIVE CAMERA LOGIC ---
   const startLiveScan = async () => {
+    if (!currentUser) {
+      setAuthMode('login');
+      setAuthModalOpen(true);
+      triggerToast("Please log in to use the Live AI Lens", "error");
+      return;
+    }
     setCurrentView('live-scanner');
     setIsLiveScanning(true);
     setLiveTags(['Warming up AI...']);
@@ -139,7 +162,7 @@ export default function App() {
     }, 'image/jpeg');
   };
 
-  // --- AUTH LOGIC ---
+  // --- AUTH & PROFILE LOGIC ---
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     if (!authUsername || !authPassword) {
@@ -196,6 +219,24 @@ export default function App() {
     setCurrentUser(null);
     localStorage.removeItem('matchmaker_user');
     triggerToast("You have logged out.");
+    goToHome();
+  };
+
+  const loadProfile = async () => {
+    if (!currentUser) return;
+    setCurrentView('profile');
+    setIsProcessing(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/profile`, {
+        headers: { 'Authorization': `Bearer ${currentUser.token}` }
+      });
+      const data = await res.json();
+      // Safe fallback in case arrays are missing
+      setProfileData({ reports: data.reports || [], claims: data.claims || [] });
+    } catch (err) {
+      triggerToast("Failed to load profile data", "error");
+    }
+    setIsProcessing(false);
   };
 
   // --- DATA FETCHING & SUBMISSION ---
@@ -205,14 +246,22 @@ export default function App() {
     try {
       const res = await fetch(`${BACKEND_URL}/items`);
       const data = await res.json();
-      setBrowseItems(data.items);
+      // THE FIX: Gracefully handle an empty database
+      setBrowseItems(data.items || []); 
     } catch (err) {
+      setBrowseItems([]);
       triggerToast("Backend offline or waking up. Try again in 30 seconds!", "error");
     }
     setIsProcessing(false);
   };
 
   const triggerClaimConfirm = (itemId) => {
+    if (!currentUser) {
+      setAuthMode('login');
+      setAuthModalOpen(true);
+      triggerToast("Please log in to claim items", "error");
+      return;
+    }
     setConfirmModal({
       show: true,
       title: "Claim Item",
@@ -224,13 +273,12 @@ export default function App() {
   const executeClaim = async (itemId) => {
     setConfirmModal(prev => ({ ...prev, show: false }));
     try {
-      const headers = currentUser ? { 'Authorization': `Bearer ${currentUser.token}` } : {};
       const res = await fetch(`${BACKEND_URL}/claim/${itemId}`, { 
         method: 'POST',
-        headers: headers
+        headers: { 'Authorization': `Bearer ${currentUser.token}` }
       });
       if (res.ok) {
-        triggerToast("Successfully claimed! A virtual message has been sent to the finder.");
+        triggerToast("Successfully claimed! Check your Profile to contact the owner.");
         setAiMatches(prev => prev.filter(m => m.item.id !== itemId));
         setBrowseItems(prev => prev.filter(i => i.id !== itemId));
       } else {
@@ -252,13 +300,11 @@ export default function App() {
     formData.append("type", formType);
     if (imageFile) formData.append("file", imageFile);
 
-    const headers = currentUser ? { 'Authorization': `Bearer ${currentUser.token}` } : {};
-
     try {
       if (formType === 'found') {
         const res = await fetch(`${BACKEND_URL}/add-item`, { 
           method: 'POST', 
-          headers: headers,
+          headers: { 'Authorization': `Bearer ${currentUser.token}` },
           body: formData 
         });
         if (res.ok) {
@@ -270,11 +316,11 @@ export default function App() {
       } else if (formType === 'lost') {
         const response = await fetch(`${BACKEND_URL}/scan-matches`, { 
           method: 'POST', 
-          headers: headers,
+          headers: { 'Authorization': `Bearer ${currentUser.token}` },
           body: formData 
         });
         const data = await response.json();
-        setAiMatches(data.results);
+        setAiMatches(data.results || []);
         setCurrentView('dashboard');
       }
     } catch (error) {
@@ -334,13 +380,11 @@ export default function App() {
     formData.append("location", extractedData.location);
     formData.append("type", extractedData.type === 'unknown' ? 'lost' : extractedData.type);
 
-    const headers = currentUser ? { 'Authorization': `Bearer ${currentUser.token}` } : {};
-
     try {
       if (extractedData.type === 'found') {
         const res = await fetch(`${BACKEND_URL}/add-item`, { 
           method: 'POST', 
-          headers: headers,
+          headers: { 'Authorization': `Bearer ${currentUser.token}` },
           body: formData 
         });
         if (res.ok) {
@@ -352,11 +396,11 @@ export default function App() {
       } else {
         const response = await fetch(`${BACKEND_URL}/scan-matches`, { 
           method: 'POST', 
-          headers: headers,
+          headers: { 'Authorization': `Bearer ${currentUser.token}` },
           body: formData 
         });
         const data = await response.json();
-        setAiMatches(data.results);
+        setAiMatches(data.results || []);
         setAssistantOpen(false);
         setExtractedData({ name: '', description: '', location: '', type: 'unknown' });
         setCurrentView('dashboard');
@@ -416,10 +460,13 @@ export default function App() {
           </button>
           
           {currentUser ? (
-            <div className="flex items-center gap-2 bg-indigo-800/80 px-4 py-2 rounded-xl">
-              <User className="h-4 w-4 text-emerald-300" />
-              <span className="text-sm font-bold max-w-[80px] sm:max-w-[150px] truncate">{currentUser.username}</span>
-              <button onClick={handleLogout} title="Log Out" className="hover:text-rose-300 ml-2">
+            <div className="flex items-center gap-2 bg-indigo-800/80 px-2 sm:px-4 py-2 rounded-xl">
+              <button onClick={loadProfile} className="flex items-center gap-2 hover:text-emerald-300 transition-colors cursor-pointer group">
+                <User className="h-4 w-4 text-emerald-300 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-bold max-w-[80px] sm:max-w-[150px] truncate underline decoration-transparent group-hover:decoration-emerald-300">{currentUser.username}</span>
+              </button>
+              <div className="w-px h-4 bg-indigo-500/50 mx-1"></div>
+              <button onClick={handleLogout} title="Log Out" className="hover:text-rose-300 transition-colors">
                 <LogOut className="h-4 w-4" />
               </button>
             </div>
@@ -438,8 +485,10 @@ export default function App() {
         </div>
       </nav>
 
+      {}
       {/* MAIN SCREEN ROUTING */}
       <main className="flex-1 pb-12">
+        
         {/* HOME VIEW */}
         {currentView === 'home' && (
           <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 text-center animate-in fade-in duration-500">
@@ -504,6 +553,86 @@ export default function App() {
           </div>
         )}
 
+        {}
+        {/* USER PROFILE DASHBOARD */}
+        {currentView === 'profile' && (
+          <div className="max-w-6xl mx-auto p-6 mt-8 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="mb-10 flex items-center gap-4">
+              <div className="h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center border-4 border-indigo-200">
+                <User className="h-8 w-8 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-4xl font-black text-gray-900">{currentUser?.username}'s Dashboard</h2>
+                <p className="text-gray-500 font-medium text-lg">Manage your active reports and successful claims.</p>
+              </div>
+            </div>
+
+            {isProcessing ? (
+              <Loader2 className="h-12 w-12 animate-spin text-indigo-500 mx-auto" />
+            ) : (
+              <div className="space-y-12">
+                
+                {/* Items User Reported */}
+                <section>
+                  <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <AlertCircle className="text-indigo-500" /> Items You Reported
+                  </h3>
+                  {profileData.reports.length === 0 ? (
+                    <div className="bg-white p-8 rounded-2xl border border-gray-200 text-center text-gray-500">You haven't reported any items yet.</div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {profileData.reports.map((item, idx) => (
+                        <div key={idx} className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 relative">
+                          <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-xs font-bold text-white ${item.status === 'claimed' ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+                            {item.status.toUpperCase()}
+                          </div>
+                          <h4 className="text-xl font-bold text-gray-900 mb-2 mt-2">{item.name}</h4>
+                          <p className="text-sm text-gray-600 mb-4">{item.description}</p>
+                          {item.status === 'claimed' && (
+                            <div className="mt-4 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                              <p className="text-xs font-bold text-emerald-800 mb-1">Claimed By:</p>
+                              <div className="flex items-center gap-2 text-sm text-emerald-900">
+                                <Mail className="h-4 w-4" /> {item.claimed_by}@example.com
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                {/* Items User Claimed */}
+                <section>
+                  <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <CheckCircle2 className="text-emerald-500" /> Items You Claimed
+                  </h3>
+                  {profileData.claims.length === 0 ? (
+                    <div className="bg-white p-8 rounded-2xl border border-gray-200 text-center text-gray-500">You haven't claimed any items.</div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {profileData.claims.map((item, idx) => (
+                        <div key={idx} className="bg-emerald-50 border border-emerald-200 rounded-2xl shadow-sm p-6 relative">
+                          <h4 className="text-xl font-bold text-gray-900 mb-2">{item.name}</h4>
+                          <p className="text-sm text-gray-600 mb-4">You successfully identified this item as yours!</p>
+                          <div className="mt-4 p-3 bg-white rounded-xl border border-emerald-100">
+                            <p className="text-xs font-bold text-emerald-800 mb-1">Found By (Contact Them):</p>
+                            <div className="flex items-center gap-2 text-sm text-emerald-900 font-medium">
+                              <Mail className="h-4 w-4" /> {item.creator}@example.com
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+              </div>
+            )}
+          </div>
+        )}
+
+        {}
         {/* MANUAL REPORT FORM */}
         {(currentView === 'report-lost' || currentView === 'report-found') && (
           <div className="max-w-xl mx-auto p-8 mt-12 bg-white rounded-3xl shadow-xl border border-gray-100 animate-in slide-in-from-bottom-4 duration-500">
@@ -544,6 +673,7 @@ export default function App() {
           </div>
         )}
 
+        {}
         {/* FEED / DASHBOARD VIEW */}
         {(currentView === 'dashboard' || currentView === 'browse') && (
           <div className="max-w-6xl mx-auto p-6 mt-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -561,6 +691,18 @@ export default function App() {
             )}
             
             {isProcessing && <Loader2 className="h-12 w-12 animate-spin text-indigo-500 mx-auto" />}
+
+            {/* NEW FIX: Beautiful Empty State Message if database is totally empty */}
+            {!isProcessing && browseItems.length === 0 && currentView === 'browse' && (
+              <div className="text-center py-20 bg-white rounded-3xl border border-gray-200 shadow-sm mt-8">
+                <Search className="h-16 w-16 text-indigo-200 mx-auto mb-4" />
+                <h3 className="text-2xl font-black text-gray-800 mb-2">The feed is empty!</h3>
+                <p className="text-gray-500 font-medium">Be the first person to add an item to the network.</p>
+                <button onClick={() => handleReportClick('found')} className="mt-6 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition">
+                  Post an Item
+                </button>
+              </div>
+            )}
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
               {(currentView === 'dashboard' ? aiMatches : browseItems).map((data, idx) => {
@@ -635,6 +777,7 @@ export default function App() {
         )}
       </main>
 
+      {}
       {/* FOOTER */}
       <footer className="bg-gray-900 text-gray-400 py-8 text-center mt-auto">
         <div className="max-w-4xl mx-auto px-6">
@@ -645,7 +788,7 @@ export default function App() {
 
       {/* FLOAT AI ASSISTANT WIDGET TOGGLE BUTTON */}
       <button 
-        onClick={() => setAssistantOpen(true)}
+        onClick={openAssistant}
         className="fixed bottom-6 left-6 z-40 bg-gradient-to-tr from-indigo-600 to-purple-600 text-white p-5 rounded-full shadow-2xl hover:scale-110 active:scale-95 hover:rotate-3 transition-all flex items-center gap-2 border border-indigo-400 group"
       >
         <MessageSquareCode className="h-7 w-7 animate-pulse" />
@@ -762,6 +905,7 @@ export default function App() {
         </div>
       )}
 
+      {}
       {/* SECURE REGISTER/LOGIN DIALOGUE MODAL */}
       {authModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
