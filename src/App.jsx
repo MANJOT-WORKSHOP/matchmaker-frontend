@@ -1,25 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, PlusCircle, AlertCircle, Home, CheckCircle2, MapPin, Camera, Loader2, Tag, Image as ImageIcon, LayoutGrid, Check, User, LogIn, LogOut, MessageSquareCode, X, Sparkles, Send, ScanLine, Mail, Map } from 'lucide-react';
 
-// ⚠️ CHANGE THIS LINK TO YOUR REAL RENDER URL ⚠️
-const BACKEND_URL = "https://ai-matchmaker-api-kjky.onrender.com/"; 
+// 🚀 URL CONFIGURED FOR PRODUCTION - NO TRAILING SLASH
+const BACKEND_URL = "https://ai-matchmaker-api-kjky.onrender.com"; 
 
 export default function App() {
   const [currentView, setCurrentView] = useState('home');
   const [formType, setFormType] = useState(''); 
   
-  // Reported Items State
   const [itemName, setItemName] = useState('');
   const [itemDescription, setItemDescription] = useState('');
   const [itemLocation, setItemLocation] = useState('');
   const [imageFile, setImageFile] = useState(null); 
   
-  // Lists and Search State
   const [aiMatches, setAiMatches] = useState([]);
   const [browseItems, setBrowseItems] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Authentication & Profile States
   const [currentUser, setCurrentUser] = useState(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState('login');
@@ -28,7 +25,6 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState('');
   const [profileData, setProfileData] = useState({ reports: [], claims: [] });
 
-  // AI Chat Assistant States
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([
     { role: 'model', text: 'Hi! I am your AI MatchMaker Assistant. Tell me what you lost or found (e.g., "I lost a grey iPhone in the library"), and I will automatically draft your report!' }
@@ -37,25 +33,21 @@ export default function App() {
   const [extractedData, setExtractedData] = useState({ name: '', description: '', location: '', type: 'unknown' });
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Live Camera Scanner States
   const [isLiveScanning, setIsLiveScanning] = useState(false);
   const [liveTags, setLiveTags] = useState([]);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const scanIntervalRef = useRef(null);
 
-  // Custom Notifications
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [confirmModal, setConfirmModal] = useState({ show: false, title: '', message: '', onConfirm: null });
 
   const chatEndRef = useRef(null);
 
-  // Auto-scroll chat to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  // Handle auto login on load
   useEffect(() => {
     const savedUser = localStorage.getItem('matchmaker_user');
     if (savedUser) {
@@ -100,7 +92,6 @@ export default function App() {
     setAssistantOpen(true);
   };
 
-  // --- LIVE CAMERA LOGIC ---
   const startLiveScan = async () => {
     if (!currentUser) {
       setAuthMode('login');
@@ -162,7 +153,6 @@ export default function App() {
     }, 'image/jpeg');
   };
 
-  // --- AUTH & PROFILE LOGIC ---
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     if (!authUsername || !authPassword) {
@@ -238,7 +228,6 @@ export default function App() {
     setIsProcessing(false);
   };
 
-  // --- DATA FETCHING & SUBMISSION ---
   const loadBrowseFeed = async () => {
     setCurrentView('browse');
     setIsProcessing(true);
@@ -341,7 +330,6 @@ export default function App() {
     setIsProcessing(false);
   };
 
-  // --- AI ASSISTANT CHAT LOGIC ---
   const handleAssistantSend = async (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -426,7 +414,6 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans transition-all relative">
       
-      {/* TOAST SYSTEM */}
       {toast.show && (
         <div className={`fixed bottom-6 right-6 z-50 p-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce border text-white transition-all ${
           toast.type === 'error' ? 'bg-rose-600 border-rose-500' : 'bg-emerald-600 border-emerald-500'
@@ -436,7 +423,6 @@ export default function App() {
         </div>
       )}
 
-      {/* CONFIRMATION MODAL */}
       {confirmModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-gray-100 animate-scale-up">
@@ -460,7 +446,6 @@ export default function App() {
         </div>
       )}
 
-      {/* NAVBAR */}
       <nav className="bg-indigo-600 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-30">
         <div className="flex items-center space-x-2 cursor-pointer" onClick={goToHome}>
           <Search className="h-6 w-6" />
@@ -502,10 +487,7 @@ export default function App() {
         </div>
       </nav>
 
-      {/* MAIN SCREEN ROUTING */}
       <main className="flex-1 pb-12">
-        
-        {/* HOME VIEW */}
         {currentView === 'home' && (
           <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 text-center animate-in fade-in duration-500">
             <div className="bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full font-bold text-sm mb-6 flex items-center gap-2">
@@ -537,7 +519,6 @@ export default function App() {
           </div>
         )}
 
-        {/* LIVE SCANNER VIEW */}
         {currentView === 'live-scanner' && (
           <div className="max-w-4xl mx-auto p-6 mt-8 animate-in slide-in-from-bottom-4">
              <div className="bg-black rounded-3xl overflow-hidden relative shadow-2xl border-4 border-indigo-500">
@@ -569,7 +550,6 @@ export default function App() {
           </div>
         )}
 
-        {/* USER PROFILE DASHBOARD */}
         {currentView === 'profile' && (
           <div className="max-w-6xl mx-auto p-6 mt-8 animate-in slide-in-from-bottom-4 duration-500">
             <div className="mb-10 flex items-center gap-4">
@@ -586,8 +566,6 @@ export default function App() {
               <Loader2 className="h-12 w-12 animate-spin text-indigo-500 mx-auto" />
             ) : (
               <div className="space-y-12">
-                
-                {/* Items User Reported */}
                 <section>
                   <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                     <AlertCircle className="text-indigo-500" /> Items You Reported
@@ -617,7 +595,6 @@ export default function App() {
                   )}
                 </section>
 
-                {/* Items User Claimed */}
                 <section>
                   <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                     <CheckCircle2 className="text-emerald-500" /> Items You Claimed
@@ -641,13 +618,11 @@ export default function App() {
                     </div>
                   )}
                 </section>
-
               </div>
             )}
           </div>
         )}
 
-        {/* MANUAL REPORT FORM */}
         {(currentView === 'report-lost' || currentView === 'report-found') && (
           <div className="max-w-xl mx-auto p-8 mt-12 bg-white rounded-3xl shadow-xl border border-gray-100 animate-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-3xl font-black text-gray-800 mb-8 text-center flex items-center justify-center gap-3">
@@ -687,7 +662,6 @@ export default function App() {
           </div>
         )}
 
-        {/* FEED / DASHBOARD VIEW */}
         {(currentView === 'dashboard' || currentView === 'browse') && (
           <div className="max-w-6xl mx-auto p-6 mt-8 animate-in slide-in-from-bottom-4 duration-500">
             {currentView === 'dashboard' ? (
@@ -788,7 +762,6 @@ export default function App() {
           </div>
         )}
 
-        {/* RADAR MAP VIEW */}
         {currentView === 'map' && (
           <div className="max-w-7xl mx-auto p-4 sm:p-6 mt-4 sm:mt-8 animate-in slide-in-from-bottom-4 duration-500">
             <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
@@ -804,7 +777,6 @@ export default function App() {
             </div>
 
             <div className="h-[70vh] bg-gray-900 rounded-3xl shadow-2xl border-4 border-gray-800 overflow-hidden relative">
-              {/* Animated Radar Grid and Sweep Layer */}
               <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.1)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
               <div className="absolute top-1/2 left-1/2 w-[150vw] h-[150vw] -translate-x-1/2 -translate-y-1/2 bg-[conic-gradient(from_0deg,transparent_0_340deg,rgba(16,185,129,0.25)_360deg)] rounded-full animate-[spin_4s_linear_infinite] pointer-events-none origin-center mix-blend-screen"></div>
               <div className="absolute top-1/2 left-1/2 h-4 w-4 bg-emerald-500 rounded-full -translate-x-1/2 -translate-y-1/2 shadow-[0_0_20px_rgba(16,185,129,1)]"></div>
@@ -856,10 +828,8 @@ export default function App() {
             </div>
           </div>
         )}
-
       </main>
 
-      {/* FOOTER */}
       <footer className="bg-gray-900 text-gray-400 py-8 text-center mt-auto">
         <div className="max-w-4xl mx-auto px-6">
           <p className="font-medium text-gray-300 mb-2">Built with React, Python FastAPI, and Computer Vision</p>
@@ -867,7 +837,6 @@ export default function App() {
         </div>
       </footer>
 
-      {/* FLOAT AI ASSISTANT WIDGET TOGGLE BUTTON */}
       <button 
         onClick={openAssistant}
         className="fixed bottom-6 left-6 z-40 bg-gradient-to-tr from-indigo-600 to-purple-600 text-white p-5 rounded-full shadow-2xl hover:scale-110 active:scale-95 hover:rotate-3 transition-all flex items-center gap-2 border border-indigo-400 group"
@@ -878,7 +847,6 @@ export default function App() {
         </span>
       </button>
 
-      {/* FLOAT CHAT ASSISTANT PANEL */}
       {assistantOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white w-full max-w-4xl h-[90vh] sm:h-[80vh] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row animate-scale-up">
@@ -986,7 +954,6 @@ export default function App() {
         </div>
       )}
 
-      {/* SECURE REGISTER/LOGIN DIALOGUE MODAL */}
       {authModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-gray-100 relative animate-scale-up">
