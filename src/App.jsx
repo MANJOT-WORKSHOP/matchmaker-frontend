@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, PlusCircle, AlertCircle, Home, CheckCircle2, MapPin, Camera, Loader2, Tag, Image as ImageIcon, LayoutGrid, Check, User, LogIn, LogOut, MessageSquareCode, X, Sparkles, Send, ScanLine, Mail } from 'lucide-react';
+import { Search, PlusCircle, AlertCircle, Home, CheckCircle2, MapPin, Camera, Loader2, Tag, Image as ImageIcon, LayoutGrid, Check, User, LogIn, LogOut, MessageSquareCode, X, Sparkles, Send, ScanLine, Mail, Map } from 'lucide-react';
 
 // ⚠️ CHANGE THIS LINK TO YOUR REAL RENDER URL ⚠️
 const BACKEND_URL = "https://ai-matchmaker-api-kjky.onrender.com/"; 
@@ -231,7 +231,6 @@ export default function App() {
         headers: { 'Authorization': `Bearer ${currentUser.token}` }
       });
       const data = await res.json();
-      // Safe fallback in case arrays are missing
       setProfileData({ reports: data.reports || [], claims: data.claims || [] });
     } catch (err) {
       triggerToast("Failed to load profile data", "error");
@@ -246,11 +245,24 @@ export default function App() {
     try {
       const res = await fetch(`${BACKEND_URL}/items`);
       const data = await res.json();
-      // THE FIX: Gracefully handle an empty database
       setBrowseItems(data.items || []); 
     } catch (err) {
       setBrowseItems([]);
       triggerToast("Backend offline or waking up. Try again in 30 seconds!", "error");
+    }
+    setIsProcessing(false);
+  };
+
+  const loadRadarMap = async () => {
+    setCurrentView('map');
+    setIsProcessing(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/items`);
+      const data = await res.json();
+      setBrowseItems(data.items || []);
+    } catch (err) {
+      setBrowseItems([]);
+      triggerToast("Failed to load radar data.", "error");
     }
     setIsProcessing(false);
   };
@@ -455,8 +467,13 @@ export default function App() {
           <span className="text-xl font-bold tracking-wider">AI MatchMaker</span>
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
+          
+          <button onClick={loadRadarMap} className="flex items-center space-x-1 hover:text-emerald-200 transition bg-gray-900 px-4 py-2 rounded-lg border border-gray-700 shadow-inner group">
+            <Map className="h-5 w-5 text-emerald-400 group-hover:animate-pulse" /><span className="hidden sm:inline text-emerald-400 font-mono text-sm tracking-wider">Radar</span>
+          </button>
+
           <button onClick={loadBrowseFeed} className="flex items-center space-x-1 hover:text-indigo-200 transition bg-indigo-700/50 px-4 py-2 rounded-lg">
-            <LayoutGrid className="h-5 w-5" /><span className="hidden sm:inline">Browse Feed</span>
+            <LayoutGrid className="h-5 w-5" /><span className="hidden sm:inline">Browse</span>
           </button>
           
           {currentUser ? (
@@ -485,7 +502,6 @@ export default function App() {
         </div>
       </nav>
 
-      {}
       {/* MAIN SCREEN ROUTING */}
       <main className="flex-1 pb-12">
         
@@ -499,7 +515,7 @@ export default function App() {
               Lost it? <span className="text-indigo-600">Let AI find it.</span>
             </h1>
             <p className="text-lg text-gray-600 mb-12 max-w-2xl">
-              Upload a photo, scan with your live camera, or chat directly with our Matchmaker AI Assistant in the bottom right corner!
+              Upload a photo, scan with your live camera, or chat directly with our MatchMaker AI Assistant in the bottom right corner!
             </p>
             <div className="flex flex-col md:flex-row gap-6 w-full max-w-5xl">
               <button onClick={() => handleReportClick('lost')} className="group flex-1 flex flex-col items-center p-10 bg-white border-2 border-gray-100 rounded-3xl hover:border-red-400 hover:shadow-2xl transition-all cursor-pointer">
@@ -553,7 +569,6 @@ export default function App() {
           </div>
         )}
 
-        {}
         {/* USER PROFILE DASHBOARD */}
         {currentView === 'profile' && (
           <div className="max-w-6xl mx-auto p-6 mt-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -632,7 +647,6 @@ export default function App() {
           </div>
         )}
 
-        {}
         {/* MANUAL REPORT FORM */}
         {(currentView === 'report-lost' || currentView === 'report-found') && (
           <div className="max-w-xl mx-auto p-8 mt-12 bg-white rounded-3xl shadow-xl border border-gray-100 animate-in slide-in-from-bottom-4 duration-500">
@@ -673,7 +687,6 @@ export default function App() {
           </div>
         )}
 
-        {}
         {/* FEED / DASHBOARD VIEW */}
         {(currentView === 'dashboard' || currentView === 'browse') && (
           <div className="max-w-6xl mx-auto p-6 mt-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -692,7 +705,6 @@ export default function App() {
             
             {isProcessing && <Loader2 className="h-12 w-12 animate-spin text-indigo-500 mx-auto" />}
 
-            {/* NEW FIX: Beautiful Empty State Message if database is totally empty */}
             {!isProcessing && browseItems.length === 0 && currentView === 'browse' && (
               <div className="text-center py-20 bg-white rounded-3xl border border-gray-200 shadow-sm mt-8">
                 <Search className="h-16 w-16 text-indigo-200 mx-auto mb-4" />
@@ -775,9 +787,78 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* RADAR MAP VIEW */}
+        {currentView === 'map' && (
+          <div className="max-w-7xl mx-auto p-4 sm:p-6 mt-4 sm:mt-8 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
+              <div>
+                <h2 className="text-4xl font-black text-gray-900 mb-2 flex items-center gap-3">
+                  <Map className="h-10 w-10 text-indigo-600" /> City Radar
+                </h2>
+                <p className="text-gray-600 text-lg">Live geographic tracking of the ecosystem.</p>
+              </div>
+              <div className="bg-gray-900 text-emerald-400 px-4 py-3 rounded-xl font-mono font-bold flex items-center justify-center gap-3 shadow-lg">
+                <div className="h-3 w-3 bg-emerald-500 rounded-full animate-ping"></div> LIVE SATELLITE
+              </div>
+            </div>
+
+            <div className="h-[70vh] bg-gray-900 rounded-3xl shadow-2xl border-4 border-gray-800 overflow-hidden relative">
+              {/* Animated Radar Grid and Sweep Layer */}
+              <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.1)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+              <div className="absolute top-1/2 left-1/2 w-[150vw] h-[150vw] -translate-x-1/2 -translate-y-1/2 bg-[conic-gradient(from_0deg,transparent_0_340deg,rgba(16,185,129,0.25)_360deg)] rounded-full animate-[spin_4s_linear_infinite] pointer-events-none origin-center mix-blend-screen"></div>
+              <div className="absolute top-1/2 left-1/2 h-4 w-4 bg-emerald-500 rounded-full -translate-x-1/2 -translate-y-1/2 shadow-[0_0_20px_rgba(16,185,129,1)]"></div>
+
+              {isProcessing ? (
+                <div className="absolute inset-0 z-10 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center">
+                  <Loader2 className="h-12 w-12 animate-spin text-emerald-500" />
+                </div>
+              ) : (
+                <div className="absolute inset-0 z-20 p-4 sm:p-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 overflow-y-auto">
+                   {browseItems.length === 0 && (
+                      <div className="col-span-full flex items-center justify-center text-emerald-500 font-mono text-2xl h-full">NO SIGNALS DETECTED</div>
+                   )}
+                   
+                   {browseItems.map((item, idx) => (
+                      <div key={idx} className="bg-black/80 backdrop-blur-md border border-emerald-500/30 p-5 rounded-2xl hover:border-emerald-400 hover:scale-[1.02] transition-all cursor-pointer group shadow-[0_0_15px_rgba(16,185,129,0.1)] h-fit">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="relative flex h-3 w-3">
+                              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${item.type === 'lost' ? 'bg-red-400' : 'bg-emerald-400'}`}></span>
+                              <span className={`relative inline-flex rounded-full h-3 w-3 ${item.type === 'lost' ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+                            </span>
+                            <span className={`font-mono text-xs font-bold tracking-widest uppercase ${item.type === 'lost' ? 'text-red-400' : 'text-emerald-400'}`}>
+                              {item.type} SIGNAL
+                            </span>
+                          </div>
+                          <span className="text-gray-500 text-[10px] font-mono">ID: {item.id.toString().padStart(4, '0')}</span>
+                        </div>
+                        
+                        <h4 className="text-white font-bold text-lg line-clamp-1 mb-3">{item.name}</h4>
+                        
+                        <div className="h-32 rounded-xl overflow-hidden mb-3 border border-gray-700 opacity-60 group-hover:opacity-100 transition-opacity">
+                          <iframe 
+                            width="100%" 
+                            height="100%" 
+                            frameBorder="0" 
+                            src={`https://maps.google.com/maps?q=${encodeURIComponent(item.location)}&t=k&z=13&ie=UTF8&iwloc=&output=embed`} 
+                            style={{ filter: 'invert(90%) hue-rotate(180deg) contrast(120%)' }}
+                          ></iframe>
+                        </div>
+
+                        <div className="text-emerald-200/70 text-xs font-mono flex items-center gap-2">
+                          <MapPin className="h-4 w-4 shrink-0" /> <span className="line-clamp-1">{item.location}</span>
+                        </div>
+                      </div>
+                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </main>
 
-      {}
       {/* FOOTER */}
       <footer className="bg-gray-900 text-gray-400 py-8 text-center mt-auto">
         <div className="max-w-4xl mx-auto px-6">
@@ -905,7 +986,6 @@ export default function App() {
         </div>
       )}
 
-      {}
       {/* SECURE REGISTER/LOGIN DIALOGUE MODAL */}
       {authModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
