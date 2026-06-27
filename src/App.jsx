@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, PlusCircle, AlertCircle, Home, CheckCircle2, MapPin, Camera, Loader2, Tag, Image as ImageIcon, LayoutGrid, Check, User, LogIn, LogOut, MessageSquareCode, X, Sparkles, Send, ScanLine, Mail, Map } from 'lucide-react';
+import { Search, PlusCircle, AlertCircle, Home, CheckCircle2, MapPin, Camera, Loader2, Tag, Image as ImageIcon, LayoutGrid, Check, User, LogIn, LogOut, MessageSquareCode, X, Sparkles, Send, ScanLine, Mail, Map, CreditCard, ShieldCheck } from 'lucide-react';
 
 // 🚀 URL CONFIGURED FOR PRODUCTION - NO TRAILING SLASH
 const BACKEND_URL = "https://ai-matchmaker-api-kjky.onrender.com"; 
@@ -11,8 +11,11 @@ export default function App() {
   const [itemName, setItemName] = useState('');
   const [itemDescription, setItemDescription] = useState('');
   const [itemLocation, setItemLocation] = useState('');
+  const [bountyAmount, setBountyAmount] = useState(''); // NEW
   const [imageFile, setImageFile] = useState(null); 
   
+  const [paymentModal, setPaymentModal] = useState({ show: false, formData: null, isProcessing: false, success: false }); // NEW
+
   const [aiMatches, setAiMatches] = useState([]);
   const [browseItems, setBrowseItems] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -67,6 +70,7 @@ export default function App() {
     setItemName('');
     setItemDescription('');
     setItemLocation('');
+    setBountyAmount('');
     setImageFile(null); 
     stopLiveScan();
   };
@@ -256,18 +260,24 @@ export default function App() {
     setIsProcessing(false);
   };
 
-  const triggerClaimConfirm = (itemId) => {
+  const triggerClaimConfirm = (item) => {
     if (!currentUser) {
       setAuthMode('login');
       setAuthModalOpen(true);
       triggerToast("Please log in to claim items", "error");
       return;
     }
+
+    const titleText = item.type === 'lost' ? 'Confirm Return' : 'Claim Item';
+    const messageText = item.type === 'lost' 
+      ? `Are you sure you found this item? ${item.bounty > 0 ? `You will be eligible to claim the $${item.bounty} reward!` : ''} This will notify the owner.`
+      : `Are you sure this found item belongs to you? This action will connect you with the finder.`;
+
     setConfirmModal({
       show: true,
-      title: "Claim Item",
-      message: "Are you sure this item belongs to you? This action will mark it as claimed and connect you with the finder.",
-      onConfirm: () => executeClaim(itemId)
+      title: titleText,
+      message: messageText,
+      onConfirm: () => executeClaim(item.id)
     });
   };
 
@@ -279,7 +289,7 @@ export default function App() {
         headers: { 'Authorization': `Bearer ${currentUser.token}` }
       });
       if (res.ok) {
-        triggerToast("Successfully claimed! Check your Profile to contact the owner.");
+        triggerToast("Success! Check your Profile Dashboard to contact them.");
         setAiMatches(prev => prev.filter(m => m.item.id !== itemId));
         setBrowseItems(prev => prev.filter(i => i.id !== itemId));
       } else {
@@ -290,17 +300,40 @@ export default function App() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
-    setIsProcessing(true);
-
+  const handlePreSubmit = (e) => {
+    e.preventDefault();
     const formData = new FormData();
     formData.append("name", itemName);
     formData.append("description", itemDescription);
     formData.append("location", itemLocation);
     formData.append("type", formType);
+    formData.append("bounty", bountyAmount ? parseInt(bountyAmount) : 0);
     if (imageFile) formData.append("file", imageFile);
 
+    // If there is a bounty, show the payment simulation first!
+    if (formType === 'lost' && bountyAmount > 0) {
+      setPaymentModal({ show: true, formData, isProcessing: false, success: false });
+    } else {
+      executeSubmit(formData);
+    }
+  };
+
+  const processSimulatedPayment = () => {
+    setPaymentModal(prev => ({ ...prev, isProcessing: true }));
+    
+    setTimeout(() => {
+      setPaymentModal(prev => ({ ...prev, isProcessing: false, success: true }));
+      
+      setTimeout(() => {
+        executeSubmit(paymentModal.formData);
+        setPaymentModal({ show: false, formData: null, isProcessing: false, success: false });
+      }, 1500);
+
+    }, 2500); // Simulate network delay
+  };
+
+  const executeSubmit = async (formData) => {
+    setIsProcessing(true);
     try {
       if (formType === 'found') {
         const res = await fetch(`${BACKEND_URL}/add-item`, { 
@@ -323,6 +356,9 @@ export default function App() {
         const data = await response.json();
         setAiMatches(data.results || []);
         setCurrentView('dashboard');
+        if (formData.get("bounty") > 0) {
+            triggerToast(`Bounty of $${formData.get("bounty")} secured in Escrow!`);
+        }
       }
     } catch (error) {
       triggerToast("Error connecting to backend.", "error");
@@ -379,6 +415,7 @@ export default function App() {
     formData.append("description", extractedData.description || "Reported via AI Assistant");
     formData.append("location", extractedData.location);
     formData.append("type", extractedData.type === 'unknown' ? 'lost' : extractedData.type);
+    formData.append("bounty", 0);
 
     try {
       if (extractedData.type === 'found') {
@@ -420,6 +457,80 @@ export default function App() {
         }`}>
           {toast.type === 'error' ? <AlertCircle className="h-6 w-6" /> : <CheckCircle2 className="h-6 w-6" />}
           <span className="font-bold">{toast.message}</span>
+        </div>
+      )}
+
+      {/* NEW: Payment Gateway Simulation Modal */}
+      {paymentModal.show && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-scale-up">
+            <div className="bg-slate-50 p-6 border-b border-gray-200 text-center relative">
+              <button 
+                onClick={() => !paymentModal.isProcessing && setPaymentModal({show: false})} 
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                disabled={paymentModal.isProcessing || paymentModal.success}
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="h-12 w-12 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <ShieldCheck className="h-6 w-6 text-indigo-600" />
+              </div>
+              <h3 className="text-xl font-black text-gray-900">Secure Escrow Checkout</h3>
+              <p className="text-sm text-gray-500 mt-1">Fund your ${bountyAmount} reward to boost visibility!</p>
+            </div>
+            
+            <div className="p-8">
+              {paymentModal.success ? (
+                <div className="text-center py-8 animate-fade-in">
+                  <div className="h-20 w-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+                  </div>
+                  <h4 className="text-2xl font-bold text-gray-900">Payment Secured</h4>
+                  <p className="text-gray-500 mt-2">Uploading your item to the global radar...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-start gap-3 mb-6">
+                    <AlertCircle className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-blue-800 font-medium leading-relaxed">
+                      This is a <b>Simulated Payment</b> for demo purposes. Do not use real credit card details. Click pay to proceed!
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">Card Number</label>
+                    <div className="relative">
+                      <CreditCard className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                      <input type="text" readOnly value="4242 4242 4242 4242" className="w-full pl-10 p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-600 font-mono" />
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">Expiry</label>
+                      <input type="text" readOnly value="12/26" className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-600 font-mono" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wider">CVC</label>
+                      <input type="text" readOnly value="***" className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-600 font-mono" />
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={processSimulatedPayment}
+                    disabled={paymentModal.isProcessing}
+                    className="w-full py-4 mt-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-black rounded-xl shadow-lg transition-all flex justify-center items-center gap-2"
+                  >
+                    {paymentModal.isProcessing ? (
+                      <><Loader2 className="h-5 w-5 animate-spin" /> Processing...</>
+                    ) : (
+                      `Pay $${bountyAmount}`
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -488,6 +599,7 @@ export default function App() {
       </nav>
 
       <main className="flex-1 pb-12">
+        {}
         {currentView === 'home' && (
           <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 text-center animate-in fade-in duration-500">
             <div className="bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full font-bold text-sm mb-6 flex items-center gap-2">
@@ -581,6 +693,11 @@ export default function App() {
                           </div>
                           <h4 className="text-xl font-bold text-gray-900 mb-2 mt-2">{item.name}</h4>
                           <p className="text-sm text-gray-600 mb-4">{item.description}</p>
+                          {item.bounty > 0 && (
+                            <div className="mb-4 text-emerald-600 font-bold text-sm bg-emerald-50 inline-block px-3 py-1 rounded-lg">
+                              💰 ${item.bounty} Reward Escrowed
+                            </div>
+                          )}
                           {item.status === 'claimed' && (
                             <div className="mt-4 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
                               <p className="text-xs font-bold text-emerald-800 mb-1">Claimed By:</p>
@@ -606,7 +723,12 @@ export default function App() {
                       {profileData.claims.map((item, idx) => (
                         <div key={idx} className="bg-emerald-50 border border-emerald-200 rounded-2xl shadow-sm p-6 relative">
                           <h4 className="text-xl font-bold text-gray-900 mb-2">{item.name}</h4>
-                          <p className="text-sm text-gray-600 mb-4">You successfully identified this item as yours!</p>
+                          <p className="text-sm text-gray-600 mb-4">You successfully identified this item!</p>
+                          {item.bounty > 0 && (
+                            <div className="mb-4 text-emerald-600 font-bold text-sm">
+                              🎉 You unlocked the ${item.bounty} reward!
+                            </div>
+                          )}
                           <div className="mt-4 p-3 bg-white rounded-xl border border-emerald-100">
                             <p className="text-xs font-bold text-emerald-800 mb-1">Found By (Contact Them):</p>
                             <div className="flex items-center gap-2 text-sm text-emerald-900 font-medium">
@@ -629,7 +751,7 @@ export default function App() {
               {formType === 'lost' ? <AlertCircle className="text-red-500 h-8 w-8" /> : <PlusCircle className="text-green-500 h-8 w-8" />}
               {formType === 'lost' ? 'Report Lost Item' : 'Report Found Item'}
             </h2>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handlePreSubmit} className="space-y-6">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Item Name</label>
                 <input type="text" required value={itemName} onChange={(e) => setItemName(e.target.value)} placeholder="E.g., Black iPhone 15" className="w-full p-4 border border-gray-200 rounded-xl bg-gray-50 text-lg" />
@@ -645,6 +767,18 @@ export default function App() {
                   <input type="text" required value={itemLocation} onChange={(e) => setItemLocation(e.target.value)} placeholder="E.g., Central Park, New York" className="w-full pl-12 p-4 border border-gray-200 rounded-xl bg-gray-50 text-lg" />
                 </div>
               </div>
+              
+              {}
+              {formType === 'lost' && (
+                <div>
+                  <label className="block text-sm font-bold text-emerald-600 mb-2">Add a Reward Bounty (Optional)</label>
+                  <p className="text-xs text-gray-500 mb-2">Incentivize finders by attaching a cash reward. Funds are held in escrow until returned.</p>
+                  <div className="relative">
+                    <span className="absolute left-4 top-4 text-gray-500 font-bold text-lg">$</span>
+                    <input type="number" min="0" value={bountyAmount} onChange={(e) => setBountyAmount(e.target.value)} placeholder="0" className="w-full pl-8 p-4 border border-emerald-200 rounded-xl bg-emerald-50 text-lg font-bold text-emerald-700 focus:ring-emerald-500 focus:border-emerald-500" />
+                  </div>
+                </div>
+              )}
 
               <label className="border-2 border-dashed border-indigo-200 bg-indigo-50/50 rounded-2xl p-8 flex flex-col items-center cursor-pointer hover:bg-indigo-100 transition-colors">
                 {imageFile ? <ImageIcon className="h-8 w-8 text-indigo-600 mb-2" /> : <Camera className="h-8 w-8 text-indigo-600 mb-2" />}
@@ -696,7 +830,15 @@ export default function App() {
                 const score = currentView === 'dashboard' ? data.confidence_score : null;
 
                 return (
-                  <div key={idx} className="bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden flex flex-col hover:shadow-xl transition-all group">
+                  <div key={idx} className="bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden flex flex-col hover:shadow-xl transition-all group relative">
+                    
+                    {}
+                    {item.bounty > 0 && (
+                       <div className="absolute top-4 left-4 z-10 bg-emerald-500 text-white text-xs font-black px-3 py-1.5 rounded-full flex items-center gap-1 shadow-lg border border-emerald-400">
+                         💰 ${item.bounty} REWARD
+                       </div>
+                    )}
+
                     {item.image_url ? (
                       <div className="relative h-56 bg-gray-100 overflow-hidden">
                         <img src={item.image_url} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -745,10 +887,11 @@ export default function App() {
 
                       <div className="mt-auto flex flex-col gap-2">
                         <button 
-                          onClick={() => triggerClaimConfirm(item.id)}
-                          className="w-full py-3 bg-green-50 hover:bg-green-500 hover:text-white text-green-700 font-bold rounded-xl transition-colors border border-green-200 hover:border-green-500 flex items-center justify-center gap-2"
+                          onClick={() => triggerClaimConfirm(item)}
+                          className="w-full py-3 bg-green-50 hover:bg-green-500 hover:text-white text-green-700 font-bold rounded-xl transition-colors border border-green-200 hover:border-green-500 flex items-center justify-center gap-2 uppercase tracking-wider"
                         >
-                          <Check className="h-5 w-5" /> YES! This is mine.
+                          <Check className="h-5 w-5" /> 
+                          {item.type === 'found' ? 'Yes! This is mine.' : 'I FOUND THIS! 🎯'}
                         </button>
                         <div className="text-[10px] text-gray-400 text-center">
                           Posted by: <span className="font-bold text-gray-500">{item.creator || 'anonymous'}</span>
@@ -792,7 +935,14 @@ export default function App() {
                    )}
                    
                    {browseItems.map((item, idx) => (
-                      <div key={idx} className="bg-black/80 backdrop-blur-md border border-emerald-500/30 p-5 rounded-2xl hover:border-emerald-400 hover:scale-[1.02] transition-all cursor-pointer group shadow-[0_0_15px_rgba(16,185,129,0.1)] h-fit">
+                      <div key={idx} className="bg-black/80 backdrop-blur-md border border-emerald-500/30 p-5 rounded-2xl hover:border-emerald-400 hover:scale-[1.02] transition-all cursor-pointer group shadow-[0_0_15px_rgba(16,185,129,0.1)] h-fit relative">
+                        
+                        {item.bounty > 0 && (
+                           <div className="absolute -top-3 -right-3 z-30 bg-emerald-500 text-white font-mono text-[10px] font-black px-2 py-1 rounded-md shadow-[0_0_10px_rgba(16,185,129,0.5)] border border-emerald-400 animate-pulse">
+                             ${item.bounty} REWARD
+                           </div>
+                        )}
+
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center gap-2">
                             <span className="relative flex h-3 w-3">
